@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>琉璃码 GlassQR — 艺术立体二维码</title>
+<meta name="description" content="把链接或普通二维码变成可旋转、可 3D 打印的艺术立体二维码。全部在浏览器本地完成。">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%23007aff'/%3E%3Cpath fill='%23fff' d='M8 8h7v7H8zm9 0h7v7h-7zM8 17h7v7H8zm11 2h3v3h-3z'/%3E%3C/svg%3E">
+<script>
+(function(){try{var t=localStorage.getItem('gq-theme');if(!t)t=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';document.documentElement.dataset.theme=t;}catch(e){}})();
+</script>
+<link rel="stylesheet" href="css/style.css">
+<script type="importmap">{"imports":{"three":"./vendor/three.module.min.js","three/addons/":"./vendor/addons/"}}</script>
+</head>
+<body>
+<div class="bg" aria-hidden="true"><i class="blob b1"></i><i class="blob b2"></i><i class="blob b3"></i></div>
+
+<header class="topbar glass">
+  <div class="brand">
+    <svg viewBox="0 0 32 32" width="26" height="26" aria-hidden="true"><rect width="32" height="32" rx="9" fill="var(--accent)"/><path fill="#fff" d="M8 8h7v7H8zm9 0h7v7h-7zM8 17h7v7H8zm11 2h3v3h-3z"/></svg>
+    <span class="brand-name" data-i18n="brand"></span>
+    <span class="brand-sub" data-i18n="tagline"></span>
+  </div>
+  <div class="top-actions">
+    <div class="seg mini" id="lang" role="group" aria-label="Language">
+      <button type="button" data-v="zh">中</button>
+      <button type="button" data-v="en">EN</button>
+    </div>
+    <button type="button" class="icon-btn" id="theme" data-i18n-title="theme_toggle">
+      <svg class="i-sun" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.3 5.3l1.5 1.5M17.2 17.2l1.5 1.5M5.3 18.7l1.5-1.5M17.2 6.8l1.5-1.5"/></svg>
+      <svg class="i-moon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8 8 0 0 1 9.5 4a7 7 0 1 0 10.5 10.5z"/></svg>
+    </button>
+  </div>
+</header>
+
+<main class="work">
+  <aside class="panel glass" id="panel">
+    <section>
+      <h2 data-i18n="sec_content"></h2>
+      <div class="seg" data-key="mode">
+        <button type="button" data-v="link" data-i18n="mode_link"></button>
+        <button type="button" data-v="image" data-i18n="mode_image"></button>
+      </div>
+      <div id="pane-link">
+        <textarea id="text" rows="3" spellcheck="false" data-i18n-ph="ph_link"></textarea>
+      </div>
+      <div id="pane-image" hidden>
+        <label class="drop" id="drop">
+          <input type="file" id="file" accept="image/*" hidden>
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16V5m0 0l-4 4m4-4l4 4M5 19h14"/></svg>
+          <span data-i18n="drop_hint"></span>
+        </label>
+      </div>
+      <p class="msg" id="msg" role="status"></p>
+      <div class="row-inline">
+        <span class="lbl" data-i18n="ecl"></span>
+        <div class="seg small" data-key="ecl">
+          <button type="button" data-v="M">M</button>
+          <button type="button" data-v="Q">Q</button>
+          <button type="button" data-v="H">H</button>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2 data-i18n="sec_style"></h2>
+      <div class="tiles" id="styles"></div>
+    </section>
+
+    <section>
+      <h2 data-i18n="sec_eye"></h2>
+      <div class="seg" data-key="eye">
+        <button type="button" data-v="square" data-i18n="eye_square"></button>
+        <button type="button" data-v="rounded" data-i18n="eye_rounded"></button>
+        <button type="button" data-v="circle" data-i18n="eye_circle"></button>
+      </div>
+    </section>
+
+    <section>
+      <h2 data-i18n="sec_color"></h2>
+      <div class="swatches" id="presets"></div>
+      <div class="colors">
+        <label><input type="color" id="c-code"><span data-i18n="color_code"></span></label>
+        <label><input type="color" id="c-base"><span data-i18n="color_base"></span></label>
+      </div>
+    </section>
+
+    <section>
+      <h2 data-i18n="sec_mat"></h2>
+      <div class="seg" data-key="mat">
+        <button type="button" data-v="matte" data-i18n="mat_matte"></button>
+        <button type="button" data-v="metal" data-i18n="mat_metal"></button>
+        <button type="button" data-v="ceramic" data-i18n="mat_ceramic"></button>
+        <button type="button" data-v="glass" data-i18n="mat_glass"></button>
+      </div>
+    </section>
+
+    <section>
+      <h2 data-i18n="sec_3d"></h2>
+      <label class="slider"><span data-i18n="p_size"></span><output data-out="size"></output>
+        <input type="range" data-key="size" min="30" max="150" step="1"></label>
+      <label class="slider"><span data-i18n="p_thick"></span><output data-out="thick"></output>
+        <input type="range" data-key="thick" min="0.8" max="6" step="0.1"></label>
+      <label class="slider"><span data-i18n="p_relief"></span><output data-out="relief"></output>
+        <input type="range" data-key="relief" min="0.4" max="20" step="0.1"></label>
+      <div class="row-inline">
+        <span class="lbl" data-i18n="p_shape"></span>
+        <div class="seg small" data-key="shape">
+          <button type="button" data-v="square" data-i18n="eye_square"></button>
+          <button type="button" data-v="rounded" data-i18n="eye_rounded"></button>
+          <button type="button" data-v="circle" data-i18n="eye_circle"></button>
+        </div>
+      </div>
+    </section>
+
+    <p class="foot" data-i18n="privacy"></p>
+  </aside>
+
+  <section class="stage" id="stage">
+    <canvas id="view"></canvas>
+    <div class="badge glass" id="badge" role="status"><i></i><span id="badge-text"></span><em id="badge-info"></em></div>
+    <div class="actionbar glass">
+      <button type="button" class="ghost" id="b-top" data-i18n="act_top"></button>
+      <button type="button" class="ghost" id="b-reset" data-i18n="act_reset"></button>
+      <button type="button" class="ghost" id="b-auto" aria-pressed="true" data-i18n="act_auto"></button>
+      <span class="sep"></span>
+      <button type="button" class="ghost strong" id="b-png" data-i18n="act_png"></button>
+      <button type="button" class="primary" id="b-stl" data-i18n="act_stl"></button>
+    </div>
+  </section>
+</main>
+
+<script src="vendor/qrcode-generator.js"></script>
+<script src="vendor/jsQR.js"></script>
+<script type="module" src="js/app.js"></script>
+</body>
+</html>
