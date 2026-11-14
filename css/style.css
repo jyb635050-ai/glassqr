@@ -159,6 +159,13 @@ input[type=range]::-moz-range-thumb{width:22px;height:22px;border:0;border-radiu
 .primary:hover{filter:brightness(1.08)}
 .sep{width:1px;height:20px;background:var(--text3);opacity:.5;margin:0 4px;flex:none}
 
+.menu{position:absolute;left:50%;bottom:74px;transform:translateX(-50%);z-index:4;display:flex;flex-direction:column;gap:2px;padding:6px;border-radius:18px;min-width:210px}
+.menu button{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:10px 12px;border-radius:12px;font-size:13.5px;text-align:left;transition:background .2s}
+.menu button:hover{background:var(--ctl)}
+.menu b{font-weight:550}
+.menu em{font-style:normal;color:var(--text3);font-size:12px;font-variant-numeric:tabular-nums}
+.toast{position:absolute;left:50%;top:14px;transform:translateX(-50%);z-index:5;padding:9px 16px;border-radius:999px;font-size:13px;color:var(--bad);max-width:calc(100% - 24px);text-align:center}
+
 /* ---------- responsive ---------- */
 @media (max-width:860px){
   body{height:auto;min-height:100dvh;overflow:auto;display:block;padding:12px}

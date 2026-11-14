@@ -4,6 +4,7 @@ import { STLExporter } from 'three/addons/exporters/STLExporter.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { build, makeMatrix, pitch, STYLES } from './builder.js';
 import { createTree, SEASONS, TREE_PALETTES } from './tree.js';
+import { encodeAnim, videoSupported } from './exporter.js';
 import { initLang, setLang, getLang, onLang, apply, t, keys } from './i18n.js';
 
 const $ = s => document.querySelector(s);
@@ -290,7 +291,54 @@ function renderPNG(px = 2400) {
   return url;
 }
 function makeSTL() { model.updateMatrixWorld(true); return new STLExporter().parse(model, { binary: true }); }
-$('#b-png').addEventListener('click', async () => { if (!matrix) return; download(await (await fetch(renderPNG())).blob(), state.kind === 'tree' ? `glassqr-tree-${state.flat ? 'code' : state.season}.png` : `glassqr-${state.style}.png`); });
+/* animated export: GIF / MP4 / WebM, rendered frame by frame */
+let exporting = false;
+const AX = new THREE.Vector3(0, 0, 1);
+function toast(text) { const el = $('#toast'); el.textContent = text; el.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => { el.hidden = true; }, 4200); }
+async function exportAnim(format) {
+  if (!matrix || exporting) return null;
+  exporting = true;
+  const isTree = state.kind === 'tree', gif = format === 'gif';
+  const size = gif ? 480 : 1080, fps = gif ? 15 : 30, duration = isTree ? 6.4 : 4;
+  const keep = { pos: camera.position.clone(), tgt: controls.target.clone(), asp: camera.aspect, fov: camera.fov, pr: renderer.getPixelRatio(), size: renderer.getSize(new THREE.Vector2()) };
+  const base = isTree && tree.morph > 0 ? tree.home.clone() : keep.pos.clone(), off = keep.pos.clone().sub(keep.tgt);
+  const dark = document.documentElement.dataset.theme === 'dark';
+  const btn = $('#b-export'), label = () => t('act_export');
+  renderer.setPixelRatio(1); renderer.setSize(size, size, false); camera.aspect = 1; camera.fov = 34; camera.updateProjectionMatrix();
+  const renderAt = time => {
+    if (isTree) {
+      // sway out and back, leaves fall, hold the code, regrow: loops seamlessly
+      const m = time < 2.6 ? 0 : time < 3.8 ? (time - 2.6) / 1.2 : time < 5.3 ? 1 : Math.max(0, 1 - (time - 5.3) / 1.1);
+      const ang = time < 2.6 ? 0.62 * Math.sin(Math.PI * time / 2.6) : 0;
+      tree.pose(m, time, ang, base);
+    } else {
+      camera.position.copy(keep.tgt).add(off.clone().applyAxisAngle(AX, Math.PI * 2 * time / duration)); camera.lookAt(keep.tgt);
+    }
+    renderer.render(scene, camera);
+  };
+  let blob = null;
+  try {
+    blob = await encodeAnim({ format, source: canvas, size, fps, duration, renderAt, bg: dark ? ['#101425', '#1a1030'] : ['#eaf1ff', '#fdeef4'],
+      onProgress: k => { btn.textContent = `${t('ex_busy')} ${Math.round(k * 100)}%`; } });
+  } catch (e) { toast(t(e.message === 'nosupport' ? 'ex_nosupport' : 'ex_fail')); console.error(e); }
+  renderer.setPixelRatio(keep.pr); renderer.setSize(keep.size.x, keep.size.y, false);
+  camera.position.copy(keep.pos); controls.target.copy(keep.tgt); camera.aspect = keep.asp; camera.fov = keep.fov; camera.updateProjectionMatrix(); controls.update();
+  if (isTree) tree.unpose();
+  btn.textContent = label(); exporting = false; dirty = true;
+  return blob;
+}
+const fileBase = () => state.kind === 'tree' ? `glassqr-tree-${state.season}` : `glassqr-${state.style}`;
+const menu = $('#menu');
+$('#b-export').addEventListener('click', e => { e.stopPropagation(); if (!exporting) menu.hidden = !menu.hidden; });
+document.addEventListener('click', e => { if (!menu.contains(e.target)) menu.hidden = true; });
+menu.addEventListener('click', async e => {
+  const b = e.target.closest('button'); if (!b || !matrix) return;
+  menu.hidden = true;
+  const f = b.dataset.f;
+  if (f === 'png') { download(await (await fetch(renderPNG())).blob(), state.kind === 'tree' ? `glassqr-tree-${state.flat ? 'code' : state.season}.png` : `glassqr-${state.style}.png`); return; }
+  if (f !== 'gif' && !videoSupported()) { toast(t('ex_nosupport')); return; }
+  const blob = await exportAnim(f); if (blob) download(blob, `${fileBase()}.${f}`);
+});
 $('#b-stl').addEventListener('click', () => { if (!matrix || state.kind === 'tree') return; download(new Blob([makeSTL()], { type: 'model/stl' }), `glassqr-${state.style}-${state.size}mm.stl`); });
 
 /* loop */
@@ -309,6 +357,7 @@ canvas.addEventListener('pointerup', e => {
 function tick(now) {
   requestAnimationFrame(tick);
   if (tween) tween(now);
+  if (exporting) return;
   const tr = state.kind === 'tree' && tree.update(now);
   controls.autoRotate = state.auto && !(state.kind === 'tree' && (tree.morph > 0 || state.flat));
   if (controls.update() || dirty || tr) { dirty = false; renderer.render(scene, camera); }
@@ -322,4 +371,4 @@ syncUI(); rebuild(); fit(true);
 requestAnimationFrame(tick);
 
 // hook for automated checks
-window.GQ = { tree, decodeOK, SEASONS, TREE_PALETTES, state, set, rebuild, verify, topPixels, makeSTL, renderPNG, readImage, STYLES, PRESETS, i18nKeys: keys, get verdict() { return verdict; }, get info() { return info; } };
+window.GQ = { exportAnim, tree, decodeOK, SEASONS, TREE_PALETTES, state, set, rebuild, verify, topPixels, makeSTL, renderPNG, readImage, STYLES, PRESETS, i18nKeys: keys, get verdict() { return verdict; }, get info() { return info; } };

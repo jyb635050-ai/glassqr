@@ -221,7 +221,16 @@ export function createTree({ scene, camera, controls, renderer, sun, hemi }) {
     return { data: sctx.getImageData(0, 0, 640, 640).data, S: 640 };
   }
 
+  // deterministic pose for frame-by-frame export: mm = morph, ang = orbit offset around the tree
+  function pose(mm, time, ang, base) {
+    apply(mm, time, true);
+    const h = (base || homeDefault).clone().applyAxisAngle(Z, ang), e = smooth(mm);
+    camera.position.lerpVectors(h, over, e); controls.target.lerpVectors(tgtTree, tgtFlat, e); camera.lookAt(controls.target);
+  }
+  function unpose() { apply(m, 0, true); }
+
   return {
+    pose, unpose,
     build, update, setFlat, reset, snapshotFlat, clear,
     setVisible(v) { group.visible = v; },
     get morph() { return m; }, get home() { return homeDefault; }, target: tgtTree,

@@ -7,7 +7,7 @@ Turn a link or an existing QR code into an artistic 3D QR code you can rotate, e
 - 魔法树模式：二维码当地面长出一棵树（阔叶 / 松 / 柳，四季，6 种叶色），点一下叶子飞落成可扫的码
 - 立体浮雕模式 9 种风格：方块、圆点、圆角、天际线、松林、树冠、水晶、棱台、水珠
 - 3 种定位角、6 组配色、4 种材质、底板形状与尺寸可调
-- 导出 PNG（透明背景）与 STL
+- 导出 PNG、GIF 动图、MP4 / WebM 视频（逐帧渲染），浮雕模式另可导出 STL
 - 内置自检：把俯视图重新识别一遍，确认能扫出原内容
 - 中文 / English，浅色 / 深色
 
@@ -22,6 +22,8 @@ python -m http.server 8791
 - [three.js](https://github.com/mrdoob/three.js) — MIT
 - [qrcode-generator](https://github.com/kazuhikoarase/qrcode-generator) — MIT
 - [jsQR](https://github.com/cozmo/jsQR) — Apache-2.0
+- [gifenc](https://github.com/mattdesl/gifenc) — MIT
+- [mp4-muxer](https://github.com/Vanilagy/mp4-muxer) / [webm-muxer](https://github.com/Vanilagy/webm-muxer) — MIT
 
 ## License
 
