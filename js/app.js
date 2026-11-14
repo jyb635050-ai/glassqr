@@ -3,6 +3,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { STLExporter } from 'three/addons/exporters/STLExporter.js';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { build, makeMatrix, pitch, STYLES } from './builder.js';
+import { createTree, SEASONS, TREE_PALETTES } from './tree.js';
 import { initLang, setLang, getLang, onLang, apply, t, keys } from './i18n.js';
 
 const $ = s => document.querySelector(s);
@@ -29,6 +30,7 @@ const ICONS = {
 };
 
 const state = {
+  kind: 'tree', species: 'oak', season: 'spring', tpal: 0, flat: false,
   mode: 'link', text: 'https://example.com', ecl: 'H',
   style: 'pine', eye: 'rounded', preset: 0, code: PRESETS[0].code, base: PRESETS[0].base,
   mat: 'matte', size: 60, thick: 2, relief: 6, shape: 'rounded', auto: true,
@@ -56,7 +58,8 @@ controls.autoRotateSpeed = 0.9; controls.maxPolarAngle = Math.PI * 0.495;
 
 const sun = new THREE.DirectionalLight(0xffffff, 1.9);
 sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048); sun.shadow.bias = -0.0004; sun.shadow.normalBias = 0.04;
-scene.add(sun, sun.target, new THREE.HemisphereLight(0xffffff, 0x8899aa, 0.35));
+const hemi = new THREE.HemisphereLight(0xffffff, 0x8899aa, 0.35);
+scene.add(sun, sun.target, hemi);
 
 const floor = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.ShadowMaterial({ opacity: 0.22 }));
 floor.receiveShadow = true; floor.position.z = -0.02; scene.add(floor);
@@ -65,17 +68,18 @@ const model = new THREE.Group(); scene.add(model);
 const meshes = { base: new THREE.Mesh(), code: new THREE.Mesh(), accent: new THREE.Mesh() };
 for (const k in meshes) { meshes[k].castShadow = true; meshes[k].receiveShadow = true; model.add(meshes[k]); }
 
+const tree = createTree({ scene, camera, controls, renderer, sun, hemi });
 let dirty = true, fitted = '';
 function fit(force) {
-  const key = state.size + state.shape;
+  const tr = state.kind === 'tree', s = tr ? 60 : state.size;
+  const key = state.kind + s + state.shape;
   if (!force && key === fitted) return;
   fitted = key;
-  const s = state.size;
-  controls.target.set(0, 0, state.thick);
-  camera.position.set(-s * 0.8, -s * 1.5, s * 1.25);
+  if (tr) controls.target.copy(tree.target); else controls.target.set(0, 0, state.thick);
+  if (tr) camera.position.copy(tree.home); else camera.position.set(-s * 0.8, -s * 1.5, s * 1.25);
   camera.near = s / 100; camera.far = s * 40; camera.updateProjectionMatrix();
   sun.position.set(-s * 0.9, -s * 0.5, s * 1.7); sun.target.position.set(0, 0, 0);
-  const sc = sun.shadow.camera; sc.left = sc.bottom = -s; sc.right = sc.top = s; sc.near = s * 0.2; sc.far = s * 5; sc.updateProjectionMatrix();
+  const sc = sun.shadow.camera; const sb = tr ? s * 1.25 : s; sc.left = sc.bottom = -sb; sc.right = sc.top = sb; sc.near = s * 0.2; sc.far = s * 5; sc.updateProjectionMatrix();
   floor.scale.setScalar(s * 8);
   controls.minDistance = s * 0.6; controls.maxDistance = s * 8;
   controls.update();
@@ -106,8 +110,13 @@ function rebuild() {
   const text = state.text.trim();
   if (!text) { matrix = null; lastError = 'empty'; }
   else { try { matrix = makeMatrix(text, state.ecl); } catch (e) { matrix = null; lastError = 'too_long'; } }
-  model.visible = !!matrix;
-  if (matrix) {
+  const isTree = state.kind === 'tree';
+  model.visible = !!matrix && !isTree; tree.setVisible(!!matrix && isTree);
+  if (!isTree) { sun.intensity = 1.9; hemi.intensity = 0.35; controls.enabled = true; }
+  if (matrix && isTree) {
+    tree.build(matrix, text, state); info = { n: matrix.n, tree: true }; fit(false);
+    verdict = decodeOK(tree.snapshotFlat()) ? 'ok' : 'bad';
+  } else if (matrix) {
     const g = build(matrix, state);
     info = g.info;
     for (const k of ['base', 'code', 'accent']) { meshes[k].geometry?.dispose(); if (g[k]) meshes[k].geometry = g[k]; meshes[k].visible = !!g[k]; }
@@ -138,23 +147,24 @@ function topPixels() {
   for (let y = 0; y < S; y++) out.set(buf.subarray((S - 1 - y) * row, (S - y) * row), y * row);
   return { data: out, S };
 }
-function verify() {
-  const { data, S } = topPixels();
+function decodeOK({ data, S }) {
   const res = window.jsQR(data, S, S);
   return !!res && res.data === state.text.trim();
 }
+function verify() { return decodeOK(state.kind === 'tree' ? tree.snapshotFlat() : topPixels()); }
 
 function paintStatus() {
   const b = $('#badge'), msg = $('#msg');
   b.className = 'badge glass ' + (verdict === 'ok' ? 'ok' : verdict === 'bad' ? 'bad' : '');
   $('#badge-text').textContent = verdict === 'ok' ? t('ok') : verdict === 'bad' ? t('bad') : t(lastError || 'checking');
-  $('#badge-info').textContent = info ? `${info.n}×${info.n} · ${state.size}×${state.size}×${(info.height).toFixed(1)} mm` : '';
+  $('#badge-info').textContent = info?.tree ? `${info.n}×${info.n}` : info ? `${info.n}×${info.n} · ${state.size}×${state.size}×${(info.height).toFixed(1)} mm` : '';
   $('#badge-info').hidden = !info;
-  b.title = verdict === 'ok' ? t('ok_hint') : verdict === 'bad' ? t('bad_hint') : '';
+  const kOk = state.kind === 'tree' ? 'tree_ok_hint' : 'ok_hint', kBad = state.kind === 'tree' ? 'tree_bad_hint' : 'bad_hint';
+  b.title = verdict === 'ok' ? t(kOk) : verdict === 'bad' ? t(kBad) : '';
   if (lastError === 'too_long') { msg.textContent = t('too_long'); msg.className = 'msg err'; }
-  else if (verdict === 'bad') { msg.textContent = t('bad_hint'); msg.className = 'msg err'; }
+  else if (verdict === 'bad') { msg.textContent = t(kBad); msg.className = 'msg err'; }
   else if (imgNote) { msg.textContent = t(imgNote.key); msg.className = 'msg ' + imgNote.cls; }
-  else { msg.textContent = verdict === 'ok' ? t('ok_hint') : ''; msg.className = 'msg'; }
+  else { msg.textContent = verdict === 'ok' ? t(kOk) : ''; msg.className = 'msg'; }
 }
 
 /* ---------------- UI ---------------- */
@@ -168,6 +178,11 @@ function syncUI() {
   if ($('#text').value !== state.text) $('#text').value = state.text;
   $('#pane-link').hidden = state.mode !== 'link'; $('#pane-image').hidden = state.mode !== 'image';
   $('#b-auto').setAttribute('aria-pressed', String(state.auto)); controls.autoRotate = state.auto;
+  $$('[data-for]').forEach(el => { el.hidden = el.dataset.for !== state.kind; });
+  const sp = TREE_PALETTES.map(p => p || SEASONS[state.season]);
+  $$('#tpals .sw').forEach((b, i) => { b.style.setProperty('--a', sp[i].leaf[0]); b.style.setProperty('--b', sp[i].deep); b.setAttribute('aria-pressed', String(i === state.tpal)); });
+  $('#b-flip').textContent = t(state.flat ? 'act_flip_tree' : 'act_flip_code');
+  $('#hint').textContent = t(state.flat ? 'hint_code' : 'hint_tree');
   $$('#lang button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === getLang())));
 }
 function defaultRelief() {
@@ -178,6 +193,8 @@ function defaultRelief() {
 function set(key, value) {
   state[key] = value;
   if (key === 'style') state.relief = defaultRelief();
+  if (key === 'kind') { state.flat = false; tree.reset(); fitted = ''; }
+  if (key === 'flat') { tree.setFlat(value); syncUI(); dirty = true; return; }
   if (key === 'code' || key === 'base') state.preset = PRESETS.findIndex(p => p.code === state.code && p.base === state.base);
   if (key === 'text' || key === 'mode') imgNote = key === 'mode' ? imgNote : null;
   syncUI();
@@ -190,6 +207,9 @@ $('#styles').innerHTML = Object.keys(STYLES).map(k =>
 $('#presets').innerHTML = PRESETS.map((p, i) =>
   `<button type="button" class="sw" data-i="${i}" style="--a:${p.code};--b:${p.base}" aria-label="${p.id}"></button>`).join('');
 
+$('#tpals').innerHTML = TREE_PALETTES.map((p, i) => `<button type="button" class="sw" data-i="${i}" aria-label="leaf ${i}"></button>`).join('');
+$('#tpals').addEventListener('click', e => { const b = e.target.closest('.sw'); if (b) set('tpal', +b.dataset.i); });
+$('#b-flip').addEventListener('click', () => set('flat', !state.flat));
 $$('.seg[data-key]').forEach(seg => seg.addEventListener('click', e => { const b = e.target.closest('button'); if (b) set(seg.dataset.key, b.dataset.v); }));
 $('#styles').addEventListener('click', e => { const b = e.target.closest('.tile'); if (b) set('style', b.dataset.v); });
 $('#presets').addEventListener('click', e => { const b = e.target.closest('.sw'); if (!b) return; const p = PRESETS[+b.dataset.i]; state.code = p.code; set('base', p.base); });
@@ -251,7 +271,9 @@ $('#b-top').addEventListener('click', () => {
   const d = state.size * 2.4; controls.target.set(0, 0, state.thick);
   flyTo(new THREE.Vector3(0, -d * 0.002, d));
 });
-$('#b-reset').addEventListener('click', () => { const s = state.size; controls.target.set(0, 0, state.thick); flyTo(new THREE.Vector3(-s * 0.8, -s * 1.5, s * 1.25)); });
+$('#b-reset').addEventListener('click', () => {
+  if (state.kind === 'tree') { if (state.flat) set('flat', false); else { controls.target.copy(tree.target); flyTo(tree.home.clone()); } return; }
+  const s = state.size; controls.target.set(0, 0, state.thick); flyTo(new THREE.Vector3(-s * 0.8, -s * 1.5, s * 1.25)); });
 $('#b-auto').addEventListener('click', () => set('auto', !state.auto));
 
 /* export */
@@ -268,8 +290,8 @@ function renderPNG(px = 2400) {
   return url;
 }
 function makeSTL() { model.updateMatrixWorld(true); return new STLExporter().parse(model, { binary: true }); }
-$('#b-png').addEventListener('click', async () => { if (!matrix) return; download(await (await fetch(renderPNG())).blob(), `glassqr-${state.style}.png`); });
-$('#b-stl').addEventListener('click', () => { if (!matrix) return; download(new Blob([makeSTL()], { type: 'model/stl' }), `glassqr-${state.style}-${state.size}mm.stl`); });
+$('#b-png').addEventListener('click', async () => { if (!matrix) return; download(await (await fetch(renderPNG())).blob(), state.kind === 'tree' ? `glassqr-tree-${state.flat ? 'code' : state.season}.png` : `glassqr-${state.style}.png`); });
+$('#b-stl').addEventListener('click', () => { if (!matrix || state.kind === 'tree') return; download(new Blob([makeSTL()], { type: 'model/stl' }), `glassqr-${state.style}-${state.size}mm.stl`); });
 
 /* loop */
 new ResizeObserver(() => {
@@ -278,11 +300,18 @@ new ResizeObserver(() => {
   camera.fov = camera.aspect >= 1.25 ? 32 : THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(16)) * 1.25 / camera.aspect));
   camera.updateProjectionMatrix(); dirty = true;
 }).observe(stage);
-canvas.addEventListener('pointerdown', () => { tween = null; });
+let down = null;
+canvas.addEventListener('pointerdown', e => { tween = null; down = { x: e.clientX, y: e.clientY, t: performance.now() }; });
+canvas.addEventListener('pointerup', e => {
+  if (down && state.kind === 'tree' && matrix && Math.hypot(e.clientX - down.x, e.clientY - down.y) < 6 && performance.now() - down.t < 450) set('flat', !state.flat);
+  down = null;
+});
 function tick(now) {
   requestAnimationFrame(tick);
   if (tween) tween(now);
-  if (controls.update() || dirty) { dirty = false; renderer.render(scene, camera); }
+  const tr = state.kind === 'tree' && tree.update(now);
+  controls.autoRotate = state.auto && !(state.kind === 'tree' && (tree.morph > 0 || state.flat));
+  if (controls.update() || dirty || tr) { dirty = false; renderer.render(scene, camera); }
 }
 
 /* boot */
@@ -293,4 +322,4 @@ syncUI(); rebuild(); fit(true);
 requestAnimationFrame(tick);
 
 // hook for automated checks
-window.GQ = { state, set, rebuild, verify, topPixels, makeSTL, renderPNG, readImage, STYLES, PRESETS, i18nKeys: keys, get verdict() { return verdict; }, get info() { return info; } };
+window.GQ = { tree, decodeOK, SEASONS, TREE_PALETTES, state, set, rebuild, verify, topPixels, makeSTL, renderPNG, readImage, STYLES, PRESETS, i18nKeys: keys, get verdict() { return verdict; }, get info() { return info; } };

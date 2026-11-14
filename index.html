@@ -35,6 +35,10 @@
 
 <main class="work">
   <aside class="panel glass" id="panel">
+    <div class="seg kind" data-key="kind">
+      <button type="button" data-v="tree" data-i18n="kind_tree"></button>
+      <button type="button" data-v="relief" data-i18n="kind_relief"></button>
+    </div>
     <section>
       <h2 data-i18n="sec_content"></h2>
       <div class="seg" data-key="mode">
@@ -62,12 +66,34 @@
       </div>
     </section>
 
-    <section>
+    <section data-for="tree">
+      <h2 data-i18n="sec_species"></h2>
+      <div class="seg" data-key="species">
+        <button type="button" data-v="oak" data-i18n="sp_oak"></button>
+        <button type="button" data-v="pine" data-i18n="sp_pine"></button>
+        <button type="button" data-v="willow" data-i18n="sp_willow"></button>
+      </div>
+    </section>
+    <section data-for="tree">
+      <h2 data-i18n="sec_season"></h2>
+      <div class="seg" data-key="season">
+        <button type="button" data-v="spring" data-i18n="se_spring"></button>
+        <button type="button" data-v="summer" data-i18n="se_summer"></button>
+        <button type="button" data-v="autumn" data-i18n="se_autumn"></button>
+        <button type="button" data-v="winter" data-i18n="se_winter"></button>
+      </div>
+    </section>
+    <section data-for="tree">
+      <h2 data-i18n="sec_leaf"></h2>
+      <div class="swatches" id="tpals"></div>
+    </section>
+
+    <section data-for="relief">
       <h2 data-i18n="sec_style"></h2>
       <div class="tiles" id="styles"></div>
     </section>
 
-    <section>
+    <section data-for="relief">
       <h2 data-i18n="sec_eye"></h2>
       <div class="seg" data-key="eye">
         <button type="button" data-v="square" data-i18n="eye_square"></button>
@@ -76,7 +102,7 @@
       </div>
     </section>
 
-    <section>
+    <section data-for="relief">
       <h2 data-i18n="sec_color"></h2>
       <div class="swatches" id="presets"></div>
       <div class="colors">
@@ -85,7 +111,7 @@
       </div>
     </section>
 
-    <section>
+    <section data-for="relief">
       <h2 data-i18n="sec_mat"></h2>
       <div class="seg" data-key="mat">
         <button type="button" data-v="matte" data-i18n="mat_matte"></button>
@@ -95,7 +121,7 @@
       </div>
     </section>
 
-    <section>
+    <section data-for="relief">
       <h2 data-i18n="sec_3d"></h2>
       <label class="slider"><span data-i18n="p_size"></span><output data-out="size"></output>
         <input type="range" data-key="size" min="30" max="150" step="1"></label>
@@ -119,13 +145,15 @@
   <section class="stage" id="stage">
     <canvas id="view"></canvas>
     <div class="badge glass" id="badge" role="status"><i></i><span id="badge-text"></span><em id="badge-info"></em></div>
+    <div class="hint glass" id="hint" data-for="tree"></div>
     <div class="actionbar glass">
-      <button type="button" class="ghost" id="b-top" data-i18n="act_top"></button>
+      <button type="button" class="ghost strong" id="b-flip" data-for="tree"></button>
+      <button type="button" class="ghost" id="b-top" data-for="relief" data-i18n="act_top"></button>
       <button type="button" class="ghost" id="b-reset" data-i18n="act_reset"></button>
       <button type="button" class="ghost" id="b-auto" aria-pressed="true" data-i18n="act_auto"></button>
       <span class="sep"></span>
       <button type="button" class="ghost strong" id="b-png" data-i18n="act_png"></button>
-      <button type="button" class="primary" id="b-stl" data-i18n="act_stl"></button>
+      <button type="button" class="primary" id="b-stl" data-for="relief" data-i18n="act_stl"></button>
     </div>
   </section>
 </main>
