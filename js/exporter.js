@@ -10,7 +10,7 @@ const breathe = () => new Promise(r => { waiting.push(r); ch.port2.postMessage(0
 export const videoSupported = () => typeof VideoEncoder === 'function' && typeof VideoFrame === 'function';
 
 async function pickCodec(format, width, height, fps, bitrate) {
-  const list = format === 'mp4' ? ['avc1.640028', 'avc1.4d0028', 'avc1.42e028'] : ['vp09.00.40.08', 'vp09.00.31.08', 'vp8'];
+  const list = format === 'mp4' ? ['avc1.64002a', 'avc1.640028', 'avc1.4d0028', 'avc1.42e028'] : ['vp09.00.40.08', 'vp09.00.31.08', 'vp8'];
   for (const codec of list) {
     try { const r = await VideoEncoder.isConfigSupported({ codec, width, height, framerate: fps, bitrate }); if (r.supported) return codec; } catch (e) {}
   }
@@ -43,7 +43,7 @@ export async function encodeAnim({ format, source, size, fps, duration, bg, rend
   }
 
   if (!videoSupported()) throw new Error('nosupport');
-  const bitrate = 8_000_000;
+  const bitrate = 10_000_000;
   const codec = await pickCodec(format, size, size, fps, bitrate);
   if (!codec) throw new Error('nosupport');
   const { Muxer, ArrayBufferTarget } = await import(format === 'mp4' ? '../vendor/mp4-muxer.mjs' : '../vendor/webm-muxer.mjs');
@@ -51,7 +51,8 @@ export async function encodeAnim({ format, source, size, fps, duration, bg, rend
   const muxer = new Muxer(format === 'mp4' ? { target: new ArrayBufferTarget(), video, fastStart: 'in-memory' } : { target: new ArrayBufferTarget(), video });
   let failure = null;
   const enc = new VideoEncoder({ output: (chunk, meta) => muxer.addVideoChunk(chunk, meta), error: e => { failure = e; } });
-  enc.configure({ codec, width: size, height: size, framerate: fps, bitrate });
+  // VP9 in quality mode is several times slower than real time; realtime mode keeps the export short
+  enc.configure({ codec, width: size, height: size, framerate: fps, bitrate, ...(format === 'webm' ? { latencyMode: 'realtime' } : {}) });
   for (let i = 0; i < frames; i++) {
     if (failure) throw failure;
     draw(i);

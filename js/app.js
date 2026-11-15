@@ -299,7 +299,7 @@ async function exportAnim(format) {
   if (!matrix || exporting) return null;
   exporting = true;
   const isTree = state.kind === 'tree', gif = format === 'gif';
-  const size = gif ? 480 : 1080, fps = gif ? 15 : 30, duration = isTree ? 6.4 : 4;
+  const size = gif ? 480 : 1080, fps = gif ? 20 : 60, duration = isTree ? 7.4 : 4;
   const keep = { pos: camera.position.clone(), tgt: controls.target.clone(), asp: camera.aspect, fov: camera.fov, pr: renderer.getPixelRatio(), size: renderer.getSize(new THREE.Vector2()) };
   const base = isTree && tree.morph > 0 ? tree.home.clone() : keep.pos.clone(), off = keep.pos.clone().sub(keep.tgt);
   const dark = document.documentElement.dataset.theme === 'dark';
@@ -308,8 +308,8 @@ async function exportAnim(format) {
   const renderAt = time => {
     if (isTree) {
       // sway out and back, leaves fall, hold the code, regrow: loops seamlessly
-      const m = time < 2.6 ? 0 : time < 3.8 ? (time - 2.6) / 1.2 : time < 5.3 ? 1 : Math.max(0, 1 - (time - 5.3) / 1.1);
-      const ang = time < 2.6 ? 0.62 * Math.sin(Math.PI * time / 2.6) : 0;
+      const m = time < 2.6 ? 0 : time < 4.2 ? (time - 2.6) / 1.6 : time < 5.9 ? 1 : Math.max(0, 1 - (time - 5.9) / 1.5);
+      const ang = time < 2.6 ? 0.31 * (1 - Math.cos(2 * Math.PI * time / 2.6)) : 0;
       tree.pose(m, time, ang, base);
     } else {
       camera.position.copy(keep.tgt).add(off.clone().applyAxisAngle(AX, Math.PI * 2 * time / duration)); camera.lookAt(keep.tgt);
@@ -371,4 +371,4 @@ syncUI(); rebuild(); fit(true);
 requestAnimationFrame(tick);
 
 // hook for automated checks
-window.GQ = { exportAnim, tree, decodeOK, SEASONS, TREE_PALETTES, state, set, rebuild, verify, topPixels, makeSTL, renderPNG, readImage, STYLES, PRESETS, i18nKeys: keys, get verdict() { return verdict; }, get info() { return info; } };
+window.GQ = { camera, controls, exportAnim, tree, decodeOK, SEASONS, TREE_PALETTES, state, set, rebuild, verify, topPixels, makeSTL, renderPNG, readImage, STYLES, PRESETS, i18nKeys: keys, get verdict() { return verdict; }, get info() { return info; } };

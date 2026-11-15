@@ -25,6 +25,7 @@ const hash = s => { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^
 const mulberry = a => () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
 const smooth = x => { x = Math.min(1, Math.max(0, x)); return x * x * (3 - 2 * x); };
 const lerp = (a, b, k) => a + (b - a) * k;
+const smoother = x => { x = Math.min(1, Math.max(0, x)); return x * x * x * (x * (x * 6 - 15) + 10); };
 const Z = new THREE.Vector3(0, 0, 1), X = new THREE.Vector3(1, 0, 0), Y = new THREE.Vector3(0, 1, 0);
 
 function childDir(dir, tilt, phi, up) {
@@ -184,6 +185,18 @@ export function createTree({ scene, camera, controls, renderer, sun, hemi }) {
     sun.intensity = lerp(1.9, 0.12, em); hemi.intensity = lerp(0.35, 1.25, em);
   }
 
+  // Camera path from the orbit view to straight overhead, interpolated in spherical coordinates.
+  // Distance, tilt and heading each ease on their own, and the heading settles on the nearest
+  // quarter turn, so the code never swings round at the end of the move.
+  function place(base, mm) {
+    const e = smoother(mm), o = base.clone().sub(tgtTree), r0 = o.length();
+    const p0 = Math.acos(Math.min(1, Math.max(-1, o.z / r0))), a0 = Math.atan2(o.y, o.x), Q = Math.PI / 2;
+    const a1 = Math.round((a0 + Q) / Q) * Q - Q;
+    const r = lerp(r0, over.length(), e), p = lerp(p0, 0.0008, e), a = lerp(a0, a1, e);
+    controls.target.lerpVectors(tgtTree, tgtFlat, e);
+    camera.position.set(controls.target.x + r * Math.sin(p) * Math.cos(a), controls.target.y + r * Math.sin(p) * Math.sin(a), controls.target.z + r * Math.cos(p));
+  }
+
   function setFlat(flat) {
     if (flat && m === 0 && goal === 0) home.copy(camera.position);
     goal = flat ? 1 : 0;
@@ -195,11 +208,8 @@ export function createTree({ scene, camera, controls, renderer, sun, hemi }) {
     if (!L || !group.visible) { last = now; return false; }
     const dt = Math.min(0.05, (now - last) / 1000 || 0); last = now;
     const moving = m !== goal;
-    if (moving) { m = goal > m ? Math.min(goal, m + dt / 1.0) : Math.max(goal, m - dt / 1.0); }
-    if (m > 0 || moving) {
-      const e = smooth(m);
-      camera.position.lerpVectors(home, over, e); controls.target.lerpVectors(tgtTree, tgtFlat, e);
-    }
+    if (moving) { m = goal > m ? Math.min(goal, m + dt / 1.4) : Math.max(goal, m - dt / 1.4); }
+    if (m > 0 || moving) place(home, m);
     controls.enabled = m === 0;
     if (moving) { apply(m, now / 1000, true); return true; }
     if (m === 0 && !reduce) { apply(0, now / 1000, false); return true; }
@@ -224,8 +234,7 @@ export function createTree({ scene, camera, controls, renderer, sun, hemi }) {
   // deterministic pose for frame-by-frame export: mm = morph, ang = orbit offset around the tree
   function pose(mm, time, ang, base) {
     apply(mm, time, true);
-    const h = (base || homeDefault).clone().applyAxisAngle(Z, ang), e = smooth(mm);
-    camera.position.lerpVectors(h, over, e); controls.target.lerpVectors(tgtTree, tgtFlat, e); camera.lookAt(controls.target);
+    place((base || homeDefault).clone().applyAxisAngle(Z, ang), mm); camera.lookAt(controls.target);
   }
   function unpose() { apply(m, 0, true); }
 
